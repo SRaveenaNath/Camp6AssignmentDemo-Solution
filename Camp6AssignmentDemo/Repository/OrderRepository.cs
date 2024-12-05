@@ -8,7 +8,7 @@ namespace Camp6AssignmentDemo.Repository
     public class OrderRepository : IOrderRepository
     {
         //We need to call virtual db--EF
-        private readonly Camp6AssignmentDbContext _context; //_context for accessing variables in DemoAugust2024DbContext ie TblDept and TblEmployee
+        private readonly Camp6AssignmentDbContext _context; 
         private object order;
 
         //DI--Constructor injection
@@ -25,7 +25,7 @@ namespace Camp6AssignmentDemo.Repository
             {
                 if (_context != null)
                 {
-                    return await _context.OrderTables.Include(ord => ord.CustomerId).Include(ord => ord.OrderItemId).ToListAsync();
+                    return await _context.OrderTables.Include(ord => ord.Customer ).Include(ord => ord.OrderItem).ToListAsync();
                 }
 
                 //Return an empty List if context is null
@@ -78,7 +78,7 @@ namespace Camp6AssignmentDemo.Repository
         #endregion
 
         #region -3- Search By id
-        public async Task<ActionResult<OrderTable>> GetOrderTableById(int id)
+        public async Task<ActionResult<OrderTable>> GetOrderById(int id)
         {
             try
             {
@@ -87,7 +87,7 @@ namespace Camp6AssignmentDemo.Repository
                     //Find the order by ID
                     var order = await _context.OrderTables
                         .Include(ord => ord.Customer)
-                        .FirstOrDefaultAsync(ord => ord.CustomerId== id);
+                        .Include(ord => ord.OrderItem).FirstOrDefaultAsync(o => o.OrderId == id);
                     return order;
                 }
                 return null;
@@ -100,100 +100,175 @@ namespace Camp6AssignmentDemo.Repository
         }
 
         #endregion
-        #region 4-Insert an Employee - Return Employee Record
-        public async Task<ActionResult<OrderTable>> PostTblOrdersReturnRecord(OrderTable orderTable)
+        #region 4-Insert an Order - Return Order Record
+        public async Task<ActionResult<OrderTable>> PostTblOrdersReturnRecord(OrderTable order)
         {
             try
             {
-
-                //check if employee object is not null
-
+                // Check if the order object is not null
                 if (order == null)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(order), "Order data is null");
-
+                    throw new ArgumentNullException(nameof(order), "Order data is null");
                 }
 
-                //Ensure the context is not null
+                // Ensure the database context is not null
                 if (_context == null)
                 {
-                    throw new InvalidOperationException("Database context is not initialised");
-
+                    throw new InvalidOperationException("Database context is not initialized");
                 }
-                //Add the employee record to DbContext
-                await _context.OrderTables.AddAsync((OrderTable)order);
 
-                //Save changes to db
+                // Add the order record to DbContext
+                await _context.OrderTables.AddAsync(order);
+
+                // Save changes to the database
                 await _context.SaveChangesAsync();
 
-                //Retrieve the employee with related Department
-                var orderwithcustomer = await _context.OrderTables
-                    .Include(ord => ord.Customer) //Eager load
-                    .FirstOrDefaultAsync(or => or.OrderId == order.OrderId);
+                // Retrieve the order with related customer details (adjust relationships as necessary)
+                var orderWithCustomer = await _context.OrderTables
+                    .Include(o => o.Customer) // Assuming 'Customer' is a navigation property
+                    .FirstOrDefaultAsync(o => o.OrderId == order.OrderId); // Assuming 'OrderId' is the unique identifier
 
-                //Return the added employee record
-                return orderwithcustomer;
-
-
+                // Return the added order record
+                return orderWithCustomer;
             }
             catch (Exception ex)
             {
-                //Log exception here if needed
+                // Log the exception if necessary (e.g., using a logging framework)
                 return null;
             }
+        }
+        #endregion
+
+        #region 5- Add Item to an Order
+        public async Task<ActionResult<OrderItem>> AddItemToOrder(int orderId, OrderItem orderItem)
+        {
+            try
+            {
+                if (_context == null)
+                {
+                    throw new InvalidOperationException("Database context is not initialized");
+                }
+
+                // Validate the order exists
+                var order = await _context.OrderTables.FindAsync(orderId);
+                if (order == null)
+                {
+                    return null; // Order not found
+                }
+
+                // Add the new order item to the database
+                await _context.OrderItems.AddAsync(orderItem);
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+
+                // Return the added order item
+                return orderItem;
+            }
+            catch (Exception ex)
+            {
+                // Log exception as necessary
+                return null;
+            }
+        }
+        #endregion
+
+
+
+        #region 6- Update Customer
+
+        public async Task<bool> UpdateCustomerAsync(int customerId, Customer updatedCustomer)
+        {
+            var customer = await _context.Customers.FindAsync(customerId);
+            if (customer == null)
+                return false;
+
+            customer.CustomerName = updatedCustomer.CustomerName;
+            customer.CustomerNumber = updatedCustomer.CustomerNumber;
+
+            await _context.SaveChangesAsync();
+            return true;
         }
 
         #endregion
 
-        //#region 5-Insert an Employee - Return ID
-        //public async Task<ActionResult<int>> PostTblEmployeesReturnId(TblEmployee tblEmployee)
-        //{
-        //    try
-        //    {
+        #region 7 Update Order
 
-        //        //check if employee object is not null
+        public async Task<bool> UpdateOrderAsync(int orderId, OrderTable updatedOrder)
+        {
+            var order = await _context.OrderTables.FindAsync(orderId);
+            if (order == null)
+                return false;
 
-        //        if (_context != null)
-        //        {
-        //            throw new ArgumentOutOfRangeException(nameof(employee), "Employee data is null");
-        //            //return  null
+            order.OrderDate = updatedOrder.OrderDate;
+            order.CustomerId = updatedOrder.CustomerId;
 
-        //        }
+            await _context.SaveChangesAsync();
+            return true;
+        }
 
-        //        //Ensure the context is not null
-        //        if (_context == null)
-        //        {
-        //            throw new InvalidOperationException("Database context is not initialised");
+        #endregion
 
-        //        }
-        //        //Add the employee record to DbContext
-        //        await _context.TblEmployees.AddAsync(employee);
+        #region 8 Update Order Item
+        public async Task<bool> UpdateOrderItemAsync(int orderId, int orderItemId, OrderItem updatedItem)
+        {
+            var orderItem = await _context.OrderItems
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == orderItemId && oi.OrderTableId == orderId);
+            if (orderItem == null)
+                return false;
 
-        //        //Save changes to db
-        //        var changesRecord = await _context.SaveChangesAsync();
+            orderItem.Quantity = updatedItem.Quantity;
+            orderItem.Price = updatedItem.Price;
+            orderItem.ItemId = updatedItem.ItemId;
 
+            await _context.SaveChangesAsync();
+            return true;
+        }
 
-        //        //Return the added employee record
-        //        if (changesRecord > 0)
-        //        {
-        //            //Return the added employee ID
-        //            return employee.EmployeeId;
-        //        }
-        //        else
-        //        {
-        //            throw new Exception("Failed to save employee record to the database.");
-        //        }
+        #endregion
 
+        #region 9  Delete Customer
+        public async Task<bool> DeleteCustomerAsync(int customerId)
+        {
+            var customer = await _context.Customers.FindAsync(customerId);
+            if (customer == null)
+                return false;
 
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        //Log exception here if needed
-        //        return null;
-        //    }
-        //}
-        //#endregion
-        
+            _context.Customers.Remove(customer);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        #endregion
+
+        #region 10 Delete Order
+
+        public async Task<bool> DeleteOrderAsync(int orderId)
+        {
+            var order = await _context.OrderTables.FindAsync(orderId);
+            if (order == null)
+                return false;
+
+            _context.OrderTables.Remove(order);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        #endregion
+
+        #region 11 Delete Order Item
+        public async Task<bool> DeleteOrderItemAsync(int orderId, int orderItemId)
+        {
+            var orderItem = await _context.OrderItems
+                .FirstOrDefaultAsync(oi => oi.OrderItemId == orderItemId && oi.OrderTableId == orderId);
+            if (orderItem == null)
+                return false;
+
+            _context.OrderItems.Remove(orderItem);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        #endregion
 
     }
 }

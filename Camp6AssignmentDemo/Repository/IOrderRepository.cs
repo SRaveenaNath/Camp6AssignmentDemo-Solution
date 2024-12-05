@@ -18,7 +18,7 @@ namespace Camp6AssignmentDemo.Repository
 
         #endregion
         #region 3- Get an Order based on Id
-        public Task<ActionResult<OrderTable>> GetOrderTableById(int id);
+        public Task<ActionResult<OrderTable>> GetOrderById(int id);
 
         #endregion
 
@@ -28,6 +28,11 @@ namespace Camp6AssignmentDemo.Repository
         public Task<ActionResult<OrderTable>> PostTblOrdersReturnRecord(OrderTable orderTable);
 
         #endregion
+
+        #region 5-Add Item to an Order
+        Task<ActionResult<OrderItem>> AddItemToOrder(int orderId, OrderItem orderItem);
+        #endregion
+
 
 
         //#region 5-Insert an Order - Return ID
